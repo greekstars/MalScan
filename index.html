@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Code Scanner</title>
+<style>
+  body {
+    background-color: #1e1e2f;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    color: #f0f0f0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+  textarea {
+    width: 600px;
+    height: 200px;
+    background-color: #2c2c3e;
+    border: none;
+    border-radius: 8px;
+    padding: 10px;
+    color: #f0f0f0;
+    font-family: monospace;
+    font-size: 14px;
+    resize: vertical;
+  }
+  select, button {
+    margin: 10px 0;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: none;
+    background-color: #3a82f7;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:hover {
+    background-color: #2c66c3;
+  }
+  #results {
+    margin-top: 20px;
+    width: 600px;
+    max-height: 400px;
+    overflow-y: auto;
+    background-color: #2c2c3e;
+    border-radius: 8px;
+    padding: 15px;
+    font-family: monospace;
+    font-size: 14px;
+  }
+  .warning {
+    color: #ff5555;
+    font-weight: bold;
+    margin-bottom: 6px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Code Scanner</h1>
+
+<select id="language">
+  <option value="python">Python</option>
+  <option value="html">HTML</option>
+</select>
+
+<textarea id="code-input" placeholder="Paste your code here..."></textarea>
+
+<button id="check-btn">Scan Code</button>
+
+<div id="results"></div>
+
+<script>
+  // Patterns to detect suspicious strings
+  const pythonPatterns = [
+    {regex: /import\s+aiohttp/, desc: "Importing network libraries"},
+    {regex: /import\s+httpx/, desc: "Importing network libraries"},
+    {regex: /import\s+requests/, desc: "Importing network libraries"},
+    {regex: /import\s+subprocess/, desc: "Importing subprocess for shell commands"},
+    {regex: /subprocess\.check_call/, desc: "Potential shell command execution"},
+    {regex: /TOKEN\s*=/, desc: "Possible token variable assignment"},
+    {regex: /discord\.Intents\.all/, desc: "Bot intents set to all (broad permissions)"},
+    {regex: /input\(.*token.*\)/i, desc: "Possible token theft via input prompt"},
+    {regex: /create_webhook/, desc: "Webhook creation detected"},
+    {regex: /await\s+send\(\)/, desc: "Webhook spam or abuse function detected"},
+    {regex: /FunctionType\(compile/, desc: "Remote code execution or obfuscation"},
+    {regex: /asyncio\.gather/, desc: "Concurrent calls often for spam/raid"},
+    {regex: /purge\s+999/, desc: "Discord channel purge command (potential nuke)"},
+    {regex: /httpx\.get/, desc: "Network requests detected (possible data exfiltration)"},
+  ];
+
+  const htmlPatterns = [
+    {regex: /<script.*?>.*?fetch\(.*?['"]webhook.*?['"].*?\).*?<\/script>/is, desc: "Webhook detected in script"},
+    {regex: /<iframe.*?>/i, desc: "Potential hidden iframe"},
+  ];
+
+  const checkBtn = document.getElementById('check-btn');
+  const resultsContainer = document.getElementById('results');
+
+  function scanCode(code, patterns) {
+    const warnings = [];
+    const lines = code.split('\n');
+    lines.forEach((line, idx) => {
+      patterns.forEach(({regex, desc}) => {
+        if (regex.test(line)) {
+          warnings.push({line: idx + 1, desc});
+        }
+      });
+    });
+    return { warnings };
+  }
+
+  checkBtn.addEventListener('click', () => {
+    const code = document.getElementById('code-input').value;
+    const lang = document.getElementById('language').value;
+
+    if (!code.trim()) {
+      resultsContainer.innerHTML = `<div class="warning">Please paste your code to scan.</div>`;
+      return;
+    }
+
+    let { warnings } = { warnings: [] };
+
+    if (lang === 'python') {
+      ({ warnings } = scanCode(code, pythonPatterns));
+    } else if (lang === 'html') {
+      ({ warnings } = scanCode(code, htmlPatterns));
+    }
+
+    if (warnings.length === 0) {
+      resultsContainer.innerHTML = `<div>No suspicious patterns detected.</div>`;
+    } else {
+      // Keep only the last warning per line
+      const lastWarningPerLine = new Map();
+      warnings.forEach(w => lastWarningPerLine.set(w.line, w));
+
+      // Sort by line number ascending
+      const filteredWarnings = Array.from(lastWarningPerLine.values()).sort((a, b) => a.line - b.line);
+
+      // Show only warnings with the ⚠️ symbol
+      const warningMessages = filteredWarnings.map(w =>
+        `<div class="warning">⚠️ Line ${w.line}: ${w.desc}</div>`
+      ).join('\n');
+
+      resultsContainer.innerHTML = warningMessages;
+    }
+  });
+</script>
+
+</body>
+</html>
